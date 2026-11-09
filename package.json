@@ -1,0 +1,22 @@
+{
+  "name": "cursorshare",
+  "version": "1.1.3",
+  "private": true,
+  "description": "画面共有しながら、参加者のマウスカーソルを色付きで表示するアプリ（操作は奪われない）",
+  "main": "main.js",
+  "scripts": {
+    "start": "node server.js",
+    "app": "electron .",
+    "package": "electron-packager . CursorShare --platform=win32 --arch=x64 --asar --out=build --overwrite --ignore=^/build --ignore=^/dist-files --ignore=^/\\.github --ignore=^/config\\.json --ignore=^/start\\.bat --ignore=^/README\\.md --ignore=^/cloudflared"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "44.9.3",
+    "@electron/packager": "20.3.0"
+  },
+  "productName": "CursorShare",
+  "author": "Takasono Makoto",
+  "license": "MIT"
+}

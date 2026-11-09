@@ -1,0 +1,9 @@
+node_modules/
+build/
+release/
+dist/
+cloudflared
+cloudflared.exe
+*.log
+.DS_Store
+Thumbs.db

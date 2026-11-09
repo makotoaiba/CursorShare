@@ -1,0 +1,9 @@
+{
+  "port": 8787,
+  "openBrowser": true,
+  "accessKey": "",
+  "videoMaxBitrate": 6000000,
+  "iceServers": [
+    { "urls": "stun:stun.l.google.com:19302" }
+  ]
+}

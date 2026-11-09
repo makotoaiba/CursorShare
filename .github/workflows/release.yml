@@ -1,0 +1,83 @@
+# v から始まるタグ（例: v1.1.3）を push すると、Windows版をビルドして GitHub Releases に公開する
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: # Actions画面から手動でビルドだけ試すこともできる（リリースは作らない）
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARED_VERSION: '2026.10.7' # 同梱する cloudflared。更新するときはここを変える
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: タグと package.json のバージョンが一致しているか確認
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $pkg = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ("v$pkg" -ne "${{ github.ref_name }}") {
+            Write-Error "タグ ${{ github.ref_name }} と package.json の version ($pkg) が一致しません"
+            exit 1
+          }
+
+      - run: npm ci
+
+      - name: アプリをビルド
+        shell: pwsh
+        run: |
+          $ver = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          npx electron-packager . CursorShare `
+            --platform=win32 --arch=x64 --asar --out=build --overwrite `
+            --app-version=$ver --build-version=$ver `
+            --app-copyright="Copyright (c) 2026 Takasono Makoto" `
+            --win32metadata.CompanyName="Takasono Makoto" `
+            --win32metadata.ProductName="CursorShare" `
+            --win32metadata.FileDescription="CursorShare" `
+            --ignore="^/build" --ignore="^/dist-files" --ignore="^/\.github" `
+            --ignore="^/config\.json" --ignore="^/start\.bat" --ignore="^/README\.md" `
+            --ignore="^/cloudflared"
+
+      - name: 配布フォルダを組み立てて zip にする
+        shell: pwsh
+        run: |
+          $ver = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $out = "release/CursorShare"
+          New-Item -ItemType Directory -Force "$out/licenses" | Out-Null
+          Copy-Item -Recurse build/CursorShare-win32-x64/* $out
+          Copy-Item config.json, dist-files/README.txt $out
+          Copy-Item LICENSE "$out/licenses/CursorShare-LICENSE.txt"
+          Copy-Item node_modules/ws/LICENSE "$out/licenses/ws-LICENSE.txt"
+          Invoke-WebRequest "https://github.com/cloudflare/cloudflared/releases/download/$env:CLOUDFLARED_VERSION/cloudflared-windows-amd64.exe" -OutFile "$out/cloudflared.exe"
+          Invoke-WebRequest "https://raw.githubusercontent.com/cloudflare/cloudflared/$env:CLOUDFLARED_VERSION/LICENSE" -OutFile "$out/licenses/cloudflared-LICENSE.txt"
+          Compress-Archive -Path $out -DestinationPath "release/CursorShare-$ver-win.zip" -CompressionLevel Optimal
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: CursorShare-win
+          path: release/*.zip
+
+      - name: GitHub Releases に公開
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: release/*.zip
+          generate_release_notes: true
+          body: |
+            ## ダウンロード
+            下の **CursorShare-（バージョン）-win.zip** をダウンロードして解凍し、`CursorShare.exe` を起動してください。
+            参加する人はインストール不要です（ホストから届いたURLを Chrome / Edge で開くだけ）。
+
+            初回起動で「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」を選んでください。

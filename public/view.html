@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>画面共有を見る</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="join" class="join">
+  <form id="joinForm" class="join-box">
+    <label for="name">表示名</label>
+    <input id="name" maxlength="24" autocomplete="nickname" required>
+    <button type="submit" class="primary">参加する</button>
+    <p class="hint">あなたのカーソルが色付きで他の参加者に表示されます。相手のPCを操作することはありません。</p>
+  </form>
+</div>
+
+<header class="bar">
+  <span id="status" class="status">接続中…</span>
+  <ul id="people" class="people"></ul>
+  <span class="spacer"></span>
+  <div class="volume">
+    <button id="muteBtn" type="button" aria-pressed="false" title="音声のオン/オフ（M）">🔇 音声オフ</button>
+    <span id="rxMeter" class="meter" title="受信中の音声レベル"><i></i></span>
+    <input id="vol" type="range" min="0" max="1" step="0.05" value="0.8" aria-label="音量">
+  </div>
+  <button id="chatBtn" type="button" aria-pressed="true">チャット<span id="unread" class="badge" hidden></span></button>
+  <button id="fsBtn" type="button">全画面</button>
+</header>
+
+<div id="main" class="main">
+  <main id="stage" class="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <div id="layer" class="layer"></div>
+    <div id="reactions" class="react-dock" role="group" aria-label="リアクション（キー1〜6）" hidden></div>
+    <p id="empty" class="empty">ホストが画面共有を始めると、ここに表示されます</p>
+    <div id="reactions" class="dock" role="group" aria-label="リアクション（キー1〜6）" hidden></div>
+  </main>
+  <aside id="chat" class="chat">
+    <ul id="chatList" class="chat-list"></ul>
+    <form id="chatForm" class="chat-form">
+      <textarea id="chatInput" rows="2" maxlength="300" placeholder="メッセージ（Enterで送信）"></textarea>
+    </form>
+  </aside>
+</div>
+
+<script type="module" src="/view.js"></script>
+</body>
+</html>
