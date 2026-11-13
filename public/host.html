@@ -11,8 +11,29 @@
   <button id="shareBtn" type="button" class="primary">画面共有を開始</button>
   <span id="status" class="status">サーバーに接続中…</span>
   <ul id="people" class="people"></ul>
-  <span id="audioBox" class="audio-box" hidden title="送信中の音声レベル"><span>音声</span><span id="audioMeter" class="meter"><i></i></span></span>
+  <div class="voice-host">
+    <button id="voiceBtn" type="button" aria-expanded="false" title="参加者の声：音量・出力先・ハウリング防止（右のバーは届いている声のレベル）">🎧 ボイス<span id="voiceMeter" class="meter mini"><i></i></span></button>
+    <div id="voicePanel" class="pop pop-panel" hidden>
+      <label class="pop-row"><span>音量</span><input id="voiceVol" type="range" min="0" max="1.5" step="0.05" value="1"></label>
+      <label class="pop-row"><span>出力先</span><select id="voiceSink"><option value="">既定のデバイス</option></select></label>
+      <label class="pop-row"><span>ハウリング防止</span>
+        <select id="guardMode">
+          <option value="auto">自動（おすすめ）</option>
+          <option value="on">常にオン</option>
+          <option value="off">オフ</option>
+        </select>
+      </label>
+      <p id="guardNote" class="pop-note"></p>
+      <div class="pop-actions">
+        <button id="muteAllBtn" type="button">全員のマイクをミュート</button>
+        <button id="retestBtn" type="button" hidden>もう一度チェック</button>
+      </div>
+      <p class="pop-note dim">参加者名をクリックすると、その人のマイクをミュートできます（本人が解除できます）。<br>マイクを使う人には「インターネット用URL」を送ってください。LAN用URL（http）では、ブラウザの制限でマイクを使えません。</p>
+    </div>
+  </div>
+  <span id="audioBox" class="audio-box" hidden title="送信中の共有音のレベル"><span>共有音</span><span id="audioMeter" class="meter"><i></i></span></span>
   <span id="audioHint" class="warn" hidden></span>
+  <span id="guardHint" class="warn guard-hint" hidden></span>
   <span class="spacer"></span>
   <button id="overlayBtn" type="button" aria-pressed="true" hidden title="参加者のカーソルをこのPCのデスクトップに重ねて表示">デスクトップ表示：オン</button>
   <button id="tunnelBtn" type="button" aria-pressed="false">インターネット公開：オフ</button>
@@ -24,7 +45,7 @@
   <main class="stage">
     <video id="video" autoplay playsinline muted></video>
     <div id="layer" class="layer"></div>
-    <p id="empty" class="empty">「画面共有を開始」で共有する画面を選んでください。<br>参加者のカーソル・リアクションはこのプレビューに表示されます。<br>このウィンドウ自体は、共有しない別モニターに置くと映像が入れ子になりません。</p>
+    <p id="empty" class="empty">「画面共有を開始」で共有する画面を選んでください。<br>参加者のカーソル・リアクション・線（参加者の右ドラッグ）はこのプレビューに表示されます。<br>このウィンドウ自体は、共有しない別モニターに置くと映像が入れ子になりません。</p>
   </main>
   <aside class="chat">
     <ul id="chatList" class="chat-list"></ul>

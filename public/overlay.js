@@ -1,8 +1,10 @@
 // ホストPCのデスクトップに重ねる透明ウィンドウ（クリックは下のアプリへ素通り）
-import { CursorLayer, wsUrl } from '/common.js';
+import { CursorLayer, wsUrl, micIcon } from '/common.js';
 
 const layer = new CursorLayer(document.querySelector('#layer'));
 const toasts = document.querySelector('#toasts');
+const speakersEl = document.querySelector('#speakers');
+const people = new Map(); // id -> { name, color, speaking }
 let chain = Promise.resolve();
 
 function toast(m) {
@@ -17,6 +19,26 @@ function toast(m) {
   while (toasts.children.length > 5) toasts.firstElementChild.remove();
 }
 
+function setPerson(p) {
+  people.set(p.id, { name: p.name, color: p.color, speaking: !!p.speaking });
+  layer.setPerson(p.id, p.name, p.color);
+  layer.setSpeaking(p.id, !!p.speaking);
+}
+
+// いま話している人を画面の隅に出す（カーソルが画面の外にあっても、誰の声か分かるように）
+function renderSpeakers() {
+  speakersEl.replaceChildren(
+    ...[...people.values()].filter((p) => p.speaking).map((p) => {
+      const el = document.createElement('span');
+      el.className = 'speaker';
+      el.style.setProperty('--c', p.color);
+      el.innerHTML = micIcon(false);
+      el.appendChild(document.createTextNode(p.name));
+      return el;
+    })
+  );
+}
+
 function connect() {
   const ws = new WebSocket(wsUrl());
   ws.onopen = () => ws.send(JSON.stringify({ type: 'hello', role: 'overlay' }));
@@ -26,13 +48,28 @@ function connect() {
       switch (m.type) {
         case 'welcome':
           layer.clear();
-          for (const v of m.viewers) layer.setPerson(v.id, v.name, v.color);
+          people.clear();
+          for (const v of m.viewers) setPerson(v);
+          renderSpeakers();
           break;
-        case 'join': layer.setPerson(m.id, m.name, m.color); break;
-        case 'leave': layer.removePerson(m.id); break;
+        case 'join': setPerson(m); break;
+        case 'leave':
+          people.delete(m.id);
+          layer.removePerson(m.id);
+          renderSpeakers();
+          break;
+        case 'voice': {
+          const p = people.get(m.id);
+          if (!p) break;
+          p.speaking = !!m.speaking;
+          layer.setSpeaking(m.id, p.speaking);
+          renderSpeakers();
+          break;
+        }
         case 'cursor': layer.move(m.id, m.x, m.y); break;
         case 'click': layer.click(m.id, m.x, m.y); break;
         case 'hide': layer.hide(m.id); break;
+        case 'stroke': layer.stroke(m.id, m.sid, m.pts, m.end); break;
         case 'react': layer.react(m.id, m.emoji, m.x, m.y); break;
         case 'chat':
           layer.say(m.id, m.text);
@@ -47,3 +84,5 @@ function connect() {
   ws.onclose = () => setTimeout(connect, 2000);
 }
 connect();
+
+window.__ov = { layer }; // 動作確認用

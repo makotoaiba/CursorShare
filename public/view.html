@@ -12,7 +12,7 @@
     <label for="name">表示名</label>
     <input id="name" maxlength="24" autocomplete="nickname" required>
     <button type="submit" class="primary">参加する</button>
-    <p class="hint">あなたのカーソルが色付きで他の参加者に表示されます。相手のPCを操作することはありません。</p>
+    <p class="hint">あなたのカーソルが色付きで他の参加者に表示されます。相手のPCを操作することはありません。<br>映像の上で右クリックしたままドラッグすると、数秒で消える線を描けます。<br>参加後に「マイクを使う」を押すと、声でも話せます。</p>
   </form>
 </div>
 
@@ -20,10 +20,19 @@
   <span id="status" class="status">接続中…</span>
   <ul id="people" class="people"></ul>
   <span class="spacer"></span>
+  <div class="voice-ctl">
+    <div class="mic-group">
+      <button id="micBtn" type="button" class="mic" aria-pressed="false" title="マイクのオン/ミュート（V）"></button>
+      <button id="micMenuBtn" type="button" class="more" aria-expanded="false" title="マイクの選択" hidden>▾</button>
+      <div id="micMenu" class="pop" hidden></div>
+    </div>
+    <span id="micMeter" class="meter" title="自分のマイクの音量" hidden><i></i></span>
+    <label class="vol-label" title="他の参加者の声の音量">声<input id="voiceVol" type="range" min="0" max="1" step="0.05" value="1" aria-label="他の参加者の声の音量"></label>
+  </div>
   <div class="volume">
-    <button id="muteBtn" type="button" aria-pressed="false" title="音声のオン/オフ（M）">🔇 音声オフ</button>
-    <span id="rxMeter" class="meter" title="受信中の音声レベル"><i></i></span>
-    <input id="vol" type="range" min="0" max="1" step="0.05" value="0.8" aria-label="音量">
+    <button id="muteBtn" type="button" aria-pressed="false" title="共有音のオン/オフ（M）">🔇 共有音オフ</button>
+    <span id="rxMeter" class="meter" title="受信中の共有音のレベル"><i></i></span>
+    <input id="vol" type="range" min="0" max="1" step="0.05" value="0.8" aria-label="共有音の音量" title="共有音の音量">
   </div>
   <button id="chatBtn" type="button" aria-pressed="true">チャット<span id="unread" class="badge" hidden></span></button>
   <button id="fsBtn" type="button">全画面</button>
@@ -33,9 +42,9 @@
   <main id="stage" class="stage">
     <video id="video" autoplay playsinline muted></video>
     <div id="layer" class="layer"></div>
-    <div id="reactions" class="react-dock" role="group" aria-label="リアクション（キー1〜6）" hidden></div>
-    <p id="empty" class="empty">ホストが画面共有を始めると、ここに表示されます</p>
-    <div id="reactions" class="dock" role="group" aria-label="リアクション（キー1〜6）" hidden></div>
+    <div id="reactions" class="react-dock" role="group" aria-label="リアクション（キー1〜6）" title="右クリックしたままドラッグで、数秒で消える線を描けます" hidden></div>
+    <p id="empty" class="empty">ホストが画面共有を始めると、ここに表示されます<br>（共有の前でも、マイクを使って話せます）</p>
+    <p id="notice" class="notice" role="status" hidden></p>
   </main>
   <aside id="chat" class="chat">
     <ul id="chatList" class="chat-list"></ul>
@@ -44,6 +53,9 @@
     </form>
   </aside>
 </div>
+
+<!-- 他の参加者の声（共有音とは別に鳴らす） -->
+<audio id="voiceAudio" autoplay></audio>
 
 <script type="module" src="/view.js"></script>
 </body>

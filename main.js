@@ -29,7 +29,7 @@ if (!app.requestSingleInstanceLock()) {
 
   function createHostWindow() {
     hostWin = new BrowserWindow({
-      width: 1280,
+      width: 1360,
       height: 820,
       minWidth: 720,
       minHeight: 480,

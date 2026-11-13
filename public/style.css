@@ -15,7 +15,7 @@ body { background: var(--bg); color: var(--text); display: flex; flex-direction:
 [hidden] { display: none !important; }
 
 /* 上部バー */
-.bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .status { color: var(--muted); }
 .spacer { flex: 1; }
 .urls { display: flex; gap: 6px; }
@@ -32,14 +32,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 button[aria-pressed="true"] { border-color: var(--accent); }
 .badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #e5484d; color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
 
-/* 映像下のリアクションバー */
-.dock { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; gap: 2px; padding: 5px; border-radius: 14px; background: rgba(32, 36, 43, .82); border: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(6px); opacity: .7; transition: opacity .2s; z-index: 2; }
-.dock:hover, .dock:focus-within { opacity: 1; }
-.dock button { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 9px 3px; background: transparent; border-color: transparent; border-radius: 10px; }
-.dock button:hover { background: rgba(255, 255, 255, .1); }
-.dock button:active { transform: scale(.92); }
-.dock-emoji { font-size: 24px; line-height: 1.1; }
-.dock kbd { font: inherit; font-size: 10px; color: var(--muted); }
+/* 映像の上では、自分の色付きカーソルを代わりに見せる */
 .stage.own-cursor { cursor: none; }
 
 /* 本体：映像＋チャット */
@@ -99,7 +92,7 @@ button[aria-pressed="true"] { border-color: var(--accent); }
 
 .warn { color: #ffcf70; font-size: 12px; }
 .volume { display: flex; align-items: center; gap: 6px; }
-.volume input { width: 90px; accent-color: var(--accent); }
+.volume input { width: 76px; accent-color: var(--accent); }
 button:disabled { opacity: .6; cursor: default; }
 
 /* リアクション：映像の下中央 */
@@ -146,3 +139,67 @@ button:disabled { opacity: .6; cursor: default; }
 .audio-note { min-height: 1.6em; margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.6; }
 .audio-note.ok { color: #6fdc8c; }
 .audio-note.warn { color: #ffcf70; }
+
+/* ---------- ボイス ---------- */
+.mic-ico { flex: none; vertical-align: -2px; }
+
+/* 参加者チップ：マイクの状態と発言中 */
+.people li { transition: box-shadow .12s; }
+.chip-mic { display: inline-flex; color: var(--muted); }
+.people li.mic-on .chip-mic { color: #6fdc8c; }
+.people li.speaking { box-shadow: 0 0 0 2px #3ccf6e; }
+.people li.clickable { cursor: pointer; }
+.people li.clickable:hover { background: #3f4652; }
+.people li.clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 発言中の人のカーソル */
+.cursor-name { transition: box-shadow .12s; }
+.cursor.speaking { opacity: 1; }
+.cursor.speaking .cursor-name { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #3ccf6e; }
+
+/* 参加者側：マイクのボタン */
+.voice-ctl { display: flex; align-items: center; gap: 6px; }
+.mic-group { position: relative; display: flex; }
+button.mic { display: inline-flex; align-items: center; gap: 6px; }
+button.mic[data-state="on"] { border-color: #3ccf6e; background: rgba(60, 207, 110, .16); }
+button.mic[data-state="on"]:hover { background: rgba(60, 207, 110, .26); }
+button.mic[data-state="on"].speaking { box-shadow: 0 0 0 2px rgba(60, 207, 110, .55); }
+button.mic[data-state="muted"] { border-color: #e5484d; background: rgba(229, 72, 77, .16); }
+button.mic[data-state="muted"]:hover { background: rgba(229, 72, 77, .26); }
+button.mic[data-state="na"] { color: var(--muted); }
+.mic-group .more { padding: 5px 8px; font-size: 11px; border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.mic-group:has(.more:not([hidden])) .mic { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.vol-label { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; }
+.vol-label input { width: 60px; accent-color: #3ccf6e; }
+
+/* 小さなメニュー・設定パネル */
+.pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; display: flex; flex-direction: column; gap: 4px; padding: 6px; min-width: 240px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); }
+.pop-item { text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; font-size: 13px; background: transparent; border-color: transparent; }
+.pop-item:hover { background: var(--raised); }
+.pop-item[aria-current="true"] { border-color: var(--accent); }
+.pop-sep { margin-top: 4px; border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; color: #ff8f8f; }
+.pop-panel { width: 340px; padding: 12px 14px; gap: 10px; }
+.pop-row { display: grid; grid-template-columns: 104px 1fr; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.pop-row input[type="range"] { width: 100%; accent-color: #3ccf6e; }
+.pop-row select { min-width: 0; font: inherit; font-size: 13px; color: var(--text); background: #1a1d22; border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+.pop-note { margin: 0; font-size: 12px; line-height: 1.65; color: var(--text); white-space: pre-line; }
+.pop-note.ok { color: #6fdc8c; }
+.pop-note.warn { color: #ffcf70; }
+.pop-note.dim { color: var(--muted); }
+.pop-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.pop-actions button { font-size: 12px; padding: 4px 10px; }
+
+/* ホスト側 */
+.voice-host { position: relative; display: flex; align-items: center; gap: 6px; }
+.guard-hint.on { color: #ff9f6e; }
+
+/* 映像の上に出すお知らせ */
+.notice { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 5; max-width: min(560px, 90%); margin: 0; padding: 9px 14px; border-radius: 8px; background: rgba(32, 36, 43, .94); border: 1px solid #ffcf70; color: var(--text); font-size: 13px; line-height: 1.6; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); }
+.bar > .volume .meter, .voice-ctl > .meter { width: 48px; }
+.meter.mini { width: 34px; margin-left: 8px; }
+.audio-box.ducked .meter i { background: #6b7480; }
+.chip-mic.na { opacity: .5; }
+.meter.guarded { outline: 1px solid #ffcf70; outline-offset: 1px; }
+
+/* 右ドラッグで描く線 */
+.ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }

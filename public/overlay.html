@@ -11,15 +11,23 @@
   .cursor svg { width: 28px; height: 33px; } /* デスクトップ上では少し大きく */
   .cursor-name { left: 20px; top: 26px; font-size: 13px; }
   .cursor-say { left: 20px; top: 50px; }
-  .toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: none; }
+  .corner { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: none; }
+  .toasts { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .speakers { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  .speaker { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px 4px 9px; border-radius: 999px; background: rgba(32, 36, 43, .92); color: #e7e9ec; font-size: 13px; font-weight: 600; border: 2px solid #3ccf6e; box-shadow: 0 4px 14px rgba(0, 0, 0, .35); }
+  .speaker::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+  .speaker .mic-ico { color: #6fdc8c; }
   .toast { max-width: 360px; padding: 8px 12px; border-radius: 8px; background: rgba(32, 36, 43, .92); color: #e7e9ec; font-size: 14px; line-height: 1.5; border-left: 4px solid var(--c); box-shadow: 0 4px 14px rgba(0, 0, 0, .35); white-space: pre-wrap; word-break: break-word; animation: toast 7s ease forwards; }
   .toast b { display: block; font-size: 12px; color: var(--c); filter: brightness(1.4); }
   @keyframes toast { 0% { opacity: 0; transform: translateY(8px); } 5%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 </style>
 </head>
 <body>
-<div id="layer" class="layer"></div>
-<div id="toasts" class="toasts"></div>
+<div id="layer" class="layer" data-ink="5"></div>
+<div class="corner">
+  <div id="speakers" class="speakers"></div>
+  <div id="toasts" class="toasts"></div>
+</div>
 <script type="module" src="/overlay.js"></script>
 </body>
 </html>

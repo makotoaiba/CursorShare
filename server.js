@@ -1,7 +1,8 @@
 'use strict';
 // CursorShare — 画面共有 + 参加者カーソル表示サーバー
 // ・映像は WebRTC で ホスト→各参加者 に直接送る（このサーバーは接続の仲介だけ）
-// ・カーソル座標は WebSocket でこのサーバーが中継する
+// ・参加者の声も WebRTC で 参加者→ホスト に届き、ホストが他の参加者へ配る
+// ・カーソル座標やチャットは WebSocket でこのサーバーが中継する
 // ・参加者の入力をホストPCに流し込む処理は一切ない（操作は奪われない）
 
 const http = require('http');
@@ -73,6 +74,14 @@ function isLocal(addr) {
 function isLocalReq(req) {
   return isLocal(req.socket.remoteAddress) && !req.headers['x-forwarded-for'] && !req.headers['cf-connecting-ip'];
 }
+// ホストと同じPCのブラウザから参加しているか（一人で動作確認する時）。
+// 同じPCだと、ブラウザが鳴らした共有音をホストがまた拾って音が回り続けるので、参加者画面に知らせる
+function isSameMachine(req) {
+  if (req.headers['x-forwarded-for'] || req.headers['cf-connecting-ip']) return false;
+  if (isLocal(req.socket.remoteAddress)) return true;
+  const addr = String(req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  return Object.values(os.networkInterfaces()).some((addrs) => (addrs || []).some((a) => a.address === addr));
+}
 function joinUrls() {
   return {
     internet: tunnelUrl ? `${tunnelUrl}/?k=${ACCESS_KEY}` : null,
@@ -88,6 +97,11 @@ const server = http.createServer((req, res) => {
   } catch {
     res.writeHead(400);
     return res.end();
+  }
+  // 参加者画面が「ホストと同じPCで開かれているか」を確かめるための問い合わせ
+  if (pathname === '/whoami') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({ sameMachine: isSameMachine(req) }));
   }
   if (pathname === '/') pathname = '/view.html';
   if (pathname === '/host') pathname = '/host.html';
@@ -122,6 +136,7 @@ wss.on('error', () => {}); // listen エラーは server 側で処理する
 const clients = new Map(); // id -> { id, ws, role, name, color }
 let hostId = null;
 let sharing = false;
+let guardOn = false; // ホストがハウリング防止（発言中は共有音を止める）を使っている
 let seq = 0;
 
 function send(c, msg) {
@@ -133,7 +148,7 @@ function broadcast(msg, exceptId) {
 function viewerList() {
   return [...clients.values()]
     .filter((c) => c.role === 'viewer')
-    .map(({ id, name, color }) => ({ id, name, color }));
+    .map(({ id, name, color, mic, speaking }) => ({ id, name, color, mic, speaking }));
 }
 function pickColor() {
   const used = new Set(viewerList().map((v) => v.color));
@@ -144,6 +159,7 @@ function cleanName(s) {
   return s || 'ゲスト';
 }
 const REACTIONS = ['👍', '👀', '😂', '❤️', '❓', '🎉'];
+const MIC_STATES = ['off', 'on', 'muted', 'na'];
 const HOST_COLOR = '#5c6672';
 function cleanText(s) {
   return String(s ?? '').replace(/[\u0000-\u0009\u000b-\u001f]/g, '').trim().slice(0, 300);
@@ -188,6 +204,7 @@ wss.on('connection', (ws, req) => {
         clients.set(id, me);
         hostId = id;
         sharing = false;
+        guardOn = false;
         send(me, {
           type: 'welcome',
           id,
@@ -198,10 +215,11 @@ wss.on('connection', (ws, req) => {
           tunnel: tunnelState,
           version: VERSION,
         });
-        broadcast({ type: 'host', online: true, sharing: false }, id);
+        broadcast({ type: 'host', online: true, sharing: false, guard: false }, id);
       } else {
         if (String(m.key || '') !== ACCESS_KEY) return reject('参加用URLが正しくありません。ホストから届いたURLをそのまま開いてください');
-        me = { id, ws, role: 'viewer', name: cleanName(m.name), color: pickColor() };
+        // mic: off=未使用 / on=発言できる / muted=ミュート中 / na=このURLでは使えない（http）
+        me = { id, ws, role: 'viewer', name: cleanName(m.name), color: pickColor(), mic: 'off', speaking: false };
         clients.set(id, me);
         send(me, {
           type: 'welcome',
@@ -209,10 +227,11 @@ wss.on('connection', (ws, req) => {
           name: me.name,
           color: me.color,
           peers: viewerList().filter((v) => v.id !== id),
-          host: { online: !!hostId, sharing },
+          host: { online: !!hostId, sharing, guard: guardOn },
           iceServers: CONFIG.iceServers,
+          sameMachine: isSameMachine(req),
         });
-        broadcast({ type: 'join', id, name: me.name, color: me.color }, id);
+        broadcast({ type: 'join', id, name: me.name, color: me.color, mic: me.mic, speaking: false }, id);
       }
       return;
     }
@@ -238,6 +257,19 @@ wss.on('connection', (ws, req) => {
       case 'hide':
         if (me.role === 'viewer') broadcast({ type: 'hide', id }, id);
         break;
+      case 'stroke': {
+        // 右ドラッグで描いた線（数秒で消える）。点は少しずつまとめて届く
+        if (me.role !== 'viewer') return;
+        const sid = Number(m.sid);
+        if (!Number.isInteger(sid) || sid < 0 || sid > 1e9) return;
+        const pts = (Array.isArray(m.pts) ? m.pts : []).slice(0, 64)
+          .map((pt) => [clamp01(pt && pt[0]), clamp01(pt && pt[1])])
+          .filter(([x, y]) => x !== null && y !== null)
+          .map(([x, y]) => [Math.round(x * 1e4) / 1e4, Math.round(y * 1e4) / 1e4]);
+        if (!pts.length && !m.end) return;
+        broadcast({ type: 'stroke', id, sid, pts, end: !!m.end }, id);
+        break;
+      }
       case 'react': {
         if (me.role !== 'viewer' || !REACTIONS.includes(m.emoji)) return;
         const x = clamp01(m.x);
@@ -252,6 +284,22 @@ wss.on('connection', (ws, req) => {
         broadcast({ type: 'chat', id, name: me.name, color: me.color || HOST_COLOR, text, time: Date.now() });
         break;
       }
+      case 'voice': {
+        // 参加者のマイク状態（音声そのものは WebRTC でホストへ直接届く。ここは表示用の状態だけ）
+        if (me.role !== 'viewer') return;
+        if (MIC_STATES.includes(m.mic)) me.mic = m.mic;
+        me.speaking = me.mic === 'on' && !!m.speaking;
+        broadcast({ type: 'voice', id, mic: me.mic, speaking: me.speaking }, id);
+        break;
+      }
+      case 'mute': {
+        // ホストが参加者のマイクをミュートさせる（本人はいつでも解除できる）
+        if (me.role !== 'host') return;
+        for (const c of clients.values()) {
+          if (c.role === 'viewer' && (m.all || c.id === String(m.id))) send(c, { type: 'mute' });
+        }
+        break;
+      }
       case 'tunnel':
         if (me.role !== 'host') return;
         if (m.on) startTunnel();
@@ -260,7 +308,13 @@ wss.on('connection', (ws, req) => {
       case 'share':
         if (me.role !== 'host') return;
         sharing = !!m.sharing;
-        broadcast({ type: 'host', online: true, sharing }, id);
+        if (!sharing) guardOn = false;
+        broadcast({ type: 'host', online: true, sharing, guard: guardOn }, id);
+        break;
+      case 'guard':
+        if (me.role !== 'host') return;
+        guardOn = sharing && !!m.on;
+        broadcast({ type: 'host', online: true, sharing, guard: guardOn }, id);
         break;
     }
   });
@@ -271,7 +325,8 @@ wss.on('connection', (ws, req) => {
     if (me.role === 'host') {
       hostId = null;
       sharing = false;
-      broadcast({ type: 'host', online: false, sharing: false });
+      guardOn = false;
+      broadcast({ type: 'host', online: false, sharing: false, guard: false });
     } else if (me.role === 'viewer') {
       broadcast({ type: 'leave', id });
     }

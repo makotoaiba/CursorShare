@@ -18,6 +18,9 @@ export function contentRect(video) {
   return { x: (W - w) / 2, y: (H - h) / 2, w, h };
 }
 
+const INK_HOLD = 3000; // 描き終わってから消え始めるまで（ms）
+const INK_FADE = 800; // 消えるのにかける時間（ms）
+
 // 参加者カーソルを描くレイヤー（座標は共有画面に対する 0〜1 の比率）
 // videoEl を渡すと映像の表示範囲に、null ならレイヤー全体（デスクトップ表示用）に合わせる
 export class CursorLayer {
@@ -26,6 +29,14 @@ export class CursorLayer {
     this.video = videoEl;
     this.items = new Map(); // id -> { el, x, y, timer }
     this.people = new Map(); // id -> { name, color }
+    // 右ドラッグで描かれる線（数秒で消える）。カーソルより下に重ねる
+    this.canvas = document.createElement('canvas');
+    this.canvas.className = 'ink';
+    layerEl.prepend(this.canvas);
+    this.ink = this.canvas.getContext('2d');
+    this.strokes = new Map(); // "id:番号" -> { color, pts, last, end }
+    this.inkWidth = Number(layerEl.dataset.ink) || 4;
+    this.inkRaf = 0;
     new ResizeObserver(() => this.relayout()).observe(videoEl || layerEl);
     if (videoEl) {
       videoEl.addEventListener('loadedmetadata', () => this.relayout());
@@ -40,7 +51,15 @@ export class CursorLayer {
   }
 
   setPerson(id, name, color) {
-    this.people.set(id, { name, color });
+    this.people.set(id, { ...this.people.get(id), name, color });
+  }
+
+  // 発言中はカーソルの名前ラベルを光らせる
+  setSpeaking(id, on) {
+    const p = this.people.get(id);
+    if (p) p.speaking = !!on;
+    const it = this.items.get(id);
+    if (it) it.el.classList.toggle('speaking', !!on);
   }
 
   removePerson(id) {
@@ -58,6 +77,7 @@ export class CursorLayer {
     el.style.setProperty('--c', p.color);
     el.innerHTML = ARROW(p.color) + '<span class="cursor-name"></span>';
     el.querySelector('.cursor-name').textContent = p.name;
+    el.classList.toggle('speaking', !!p.speaking);
     this.layer.appendChild(el);
     it = { el, x: 0, y: 0, timer: 0 };
     this.items.set(id, it);
@@ -138,19 +158,132 @@ export class CursorLayer {
 
   clear() {
     for (const id of [...this.items.keys()]) this.remove(id);
+    this.strokes.clear();
+    this.drawInk();
   }
 
   relayout() {
     for (const it of this.items.values()) this.place(it);
+    this.drawInk();
+  }
+
+  // 線の続きを足す。pts は [[x, y], ...]（0〜1）。end で描き終わり
+  stroke(id, sid, pts, end) {
+    const key = `${id}:${sid}`;
+    let st = this.strokes.get(key);
+    if (!st) {
+      const p = this.people.get(id);
+      st = { color: (p && p.color) || '#ffffff', pts: [], last: 0, end: 0 };
+      this.strokes.set(key, st);
+    }
+    for (const pt of pts || []) st.pts.push(pt);
+    st.last = performance.now();
+    if (end && !st.end) st.end = st.last;
+    this.kickInk();
+  }
+
+  kickInk() {
+    if (!this.inkRaf) this.inkRaf = requestAnimationFrame(() => { this.inkRaf = 0; this.drawInk(); });
+  }
+
+  drawInk() {
+    const dpr = window.devicePixelRatio || 1;
+    const W = this.layer.clientWidth;
+    const H = this.layer.clientHeight;
+    const cw = Math.max(1, Math.round(W * dpr));
+    const ch = Math.max(1, Math.round(H * dpr));
+    if (this.canvas.width !== cw || this.canvas.height !== ch) {
+      this.canvas.width = cw;
+      this.canvas.height = ch;
+    }
+    const ctx = this.ink;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+    if (!this.strokes.size) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const r = this.rect();
+    const now = performance.now();
+    for (const [key, st] of this.strokes) {
+      if (!st.end && now - st.last > 10000) st.end = st.last; // 描いている途中で切断された線も、いずれ消す
+      let alpha = 1;
+      if (st.end) {
+        const age = now - st.end;
+        if (age > INK_HOLD + INK_FADE) {
+          this.strokes.delete(key);
+          continue;
+        }
+        if (age > INK_HOLD) alpha = 1 - (age - INK_HOLD) / INK_FADE;
+      }
+      if (!st.pts.length) continue;
+      const path = new Path2D();
+      st.pts.forEach(([x, y], i) => {
+        const px = r.x + x * r.w;
+        const py = r.y + y * r.h;
+        if (i === 0) path.moveTo(px, py);
+        else path.lineTo(px, py);
+        if (st.pts.length === 1) path.lineTo(px + 0.01, py); // 点だけでも見えるように
+      });
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = 'rgba(255, 255, 255, .9)'; // どんな背景でも見えるよう、白いふちを付ける
+      ctx.lineWidth = this.inkWidth + 3;
+      ctx.stroke(path);
+      ctx.strokeStyle = st.color;
+      ctx.lineWidth = this.inkWidth;
+      ctx.stroke(path);
+    }
+    ctx.globalAlpha = 1;
+    if (this.strokes.size) this.kickInk();
   }
 }
 
-export function renderPeople(ul, people) {
+// マイクのアイコン（muted なら斜線つき）
+export function micIcon(muted) {
+  return '<svg class="mic-ico" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">'
+    + '<path d="M8 1.5a2.2 2.2 0 0 0-2.2 2.2v4a2.2 2.2 0 0 0 4.4 0v-4A2.2 2.2 0 0 0 8 1.5Z" fill="currentColor"/>'
+    + '<path d="M3.8 7.5a4.2 4.2 0 0 0 8.4 0M8 11.7v2.6M5.6 14.3h4.8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>'
+    + (muted ? '<path d="M2.2 2.2l11.6 11.6" fill="none" stroke="#ff6b6b" stroke-width="1.7" stroke-linecap="round"/>' : '')
+    + '</svg>';
+}
+
+// 参加者チップ。people: id -> { name, color, mic, speaking }
+// opts.onClick を渡すと、マイクがオンの人のチップを押せるようになる（ホストからのミュート用）
+export function renderPeople(ul, people, opts = {}) {
   ul.replaceChildren(
-    ...[...people.values()].map((p) => {
+    ...[...people.entries()].map(([id, p]) => {
       const li = document.createElement('li');
       li.style.setProperty('--c', p.color);
-      li.textContent = p.name;
+      const name = document.createElement('span');
+      name.textContent = p.name;
+      li.appendChild(name);
+      if (p.mic === 'on' || p.mic === 'muted') {
+        const ico = document.createElement('span');
+        ico.className = 'chip-mic';
+        ico.innerHTML = micIcon(p.mic === 'muted');
+        ico.title = p.mic === 'muted' ? 'ミュート中' : 'マイク オン';
+        li.appendChild(ico);
+        li.classList.add(p.mic === 'on' ? 'mic-on' : 'mic-muted');
+      }
+      if (p.mic === 'na') {
+        // LAN用URL（http）から参加していて、マイクを使えない人
+        const ico = document.createElement('span');
+        ico.className = 'chip-mic na';
+        ico.innerHTML = micIcon(true);
+        ico.title = 'LAN用URL（http）で参加しているため、マイクを使えません。インターネット用URLから参加すると使えます';
+        li.appendChild(ico);
+      }
+      if (p.speaking) li.classList.add('speaking');
+      if (opts.onClick && p.mic === 'on') {
+        li.classList.add('clickable');
+        li.tabIndex = 0;
+        li.setAttribute('role', 'button');
+        li.title = 'クリックでこの人のマイクをミュート';
+        li.addEventListener('click', () => opts.onClick(id));
+        li.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); opts.onClick(id); }
+        });
+      }
       return li;
     })
   );
@@ -247,6 +380,30 @@ export function startMeter(stream, el, onLevel) {
   return () => {
     cancelAnimationFrame(raf);
     bar.style.width = '0%';
+    ctx.close().catch(() => {});
+  };
+}
+
+// 音声トラックの音量を一定間隔で通知する（0〜1 ＝ -60dB〜0dB）。
+// 画面の描画に連動させず タイマーで回すので、タブが裏に回っていても止まらない
+export function watchLevel(track, onLevel, interval = 60) {
+  let ctx;
+  try { ctx = new AudioContext(); } catch { return () => {}; }
+  const src = ctx.createMediaStreamSource(new MediaStream([track]));
+  const an = ctx.createAnalyser();
+  an.fftSize = 1024;
+  src.connect(an);
+  const buf = new Float32Array(an.fftSize);
+  const timer = setInterval(() => {
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    an.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (const v of buf) sum += v * v;
+    const db = 20 * Math.log10(Math.sqrt(sum / buf.length) || 1e-8);
+    onLevel(Math.max(0, Math.min(1, (db + 60) / 60)));
+  }, interval);
+  return () => {
+    clearInterval(timer);
     ctx.close().catch(() => {});
   };
 }
