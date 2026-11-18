@@ -215,6 +215,7 @@ function closePeer(id) {
 
 // ---------- アプリ版：共有する画面を選ぶ ----------
 const appApi = window.cursorShareApp || null; // Electronアプリ内なら存在
+const isMac = appApi ? appApi.platform === 'darwin' : /Mac/.test(navigator.platform);
 const picker = $('#picker');
 
 function pickSource() {
@@ -247,13 +248,23 @@ function pickSource() {
     };
     picker.returnValue = '';
     picker.showModal(); // 先に開いて、一覧は後から埋める
-    appApi.getSources().then((sources) => {
+    $('#screenPerm').hidden = true;
+    appApi.getSources().then(async (sources) => {
       fill($('#pickScreens'), sources.filter((x) => x.isScreen));
       fill($('#pickWindows'), sources.filter((x) => !x.isScreen));
+      // Mac：「画面収録」が許可されていないと、画面の中身を取り込めない
+      if (isMac && (await appApi.screenAccess()) !== 'granted') {
+        $('#screenPerm').hidden = false;
+        return;
+      }
       startProbe(sources.find((x) => x.isScreen)).catch(console.error);
     });
   });
 }
+
+// Mac：画面収録の許可
+$('#openPerm').addEventListener('click', () => appApi && appApi.openScreenSettings());
+$('#relaunchBtn').addEventListener('click', () => appApi && appApi.relaunch());
 
 // ---------- 音声の自動検出 ----------
 // 候補（PCの音声＋全入力デバイス）を同時に開いてレベルを測り、音を拾えたものを自動で選ぶ
@@ -321,7 +332,7 @@ async function startProbe(screenSource) {
   };
 
   // PCの音声（Windowsの再生デバイスのループバック）
-  addAudioRow('system', 'PCの音声（Windowsで再生している音）', true);
+  addAudioRow('system', isMac ? 'PCの音声（Macで再生している音）' : 'PCの音声（Windowsで再生している音）', true);
   if (screenSource) {
     try {
       await appApi.chooseSource(screenSource.id, true);
@@ -367,8 +378,11 @@ async function startProbe(screenSource) {
       $('#audioNote').className = 'audio-note ok';
     } else if (performance.now() - started > 8000) {
       $('#audioNote').className = 'audio-note warn';
-      $('#audioNote').textContent = 'どれも反応しません。音を出しているソフト（Premiere・DAW等）のオーディオ出力が ASIO の場合、'
-        + '出力をWindowsのデバイス（MME / WASAPI）に変えると「PCの音声」で拾えるようになります。';
+      $('#audioNote').textContent = isMac
+        ? 'どれも反応しません。「PCの音声」を使うには macOS 13 以降と「システムオーディオ録音」の許可が必要です'
+          + '（システム設定 → プライバシーとセキュリティ）。古いmacOSでは BlackHole などの仮想オーディオ機器を入力として選んでください。'
+        : 'どれも反応しません。音を出しているソフト（Premiere・DAW等）のオーディオ出力が ASIO の場合、'
+          + '出力をWindowsのデバイス（MME / WASAPI）に変えると「PCの音声」で拾えるようになります。';
     }
   }, 300);
 }
@@ -485,7 +499,9 @@ function startAudioMonitor() {
     if (level > 0.05) silentSince = performance.now();
     const silent = performance.now() - silentSince > 4000;
     if (silent && hint.hidden) {
-      hint.textContent = '音が届いていません。ASIO等で鳴らしている音は「PCの音声」で拾えないので、入力デバイス（ループバック）を選び直してください';
+      hint.textContent = isMac
+        ? '音が届いていません。「システムオーディオ録音」の許可を確認するか、入力デバイスを選び直してください'
+        : '音が届いていません。ASIO等で鳴らしている音は「PCの音声」で拾えないので、入力デバイス（ループバック）を選び直してください';
       hint.hidden = false;
     } else if (!silent && !hint.hidden) hint.hidden = true;
   });

@@ -68,6 +68,14 @@
 <dialog id="picker" class="picker">
   <form method="dialog">
     <h2>共有する画面と音声を選択</h2>
+    <div id="screenPerm" class="perm-box" hidden>
+      <p><b>画面収録の許可が必要です（Mac）</b><br>
+      「システム設定」→「プライバシーとセキュリティ」→「画面収録とシステムオーディオ録音」で CursorShare をオンにして、アプリを再起動してください。</p>
+      <div class="pop-actions">
+        <button id="openPerm" type="button" class="primary">システム設定を開く</button>
+        <button id="relaunchBtn" type="button">アプリを再起動</button>
+      </div>
+    </div>
     <h3>画面全体</h3>
     <div id="pickScreens" class="pick-grid"></div>
     <h3>ウィンドウ <small>（参加者のカーソルはデスクトップには出ず、このアプリ内のプレビューに表示されます）</small></h3>

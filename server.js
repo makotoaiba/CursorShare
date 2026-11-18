@@ -358,9 +358,13 @@ function setTunnel(state, message = '') {
 }
 
 function cloudflaredPath() {
+  if (process.env.CURSORSHARE_CLOUDFLARED) return process.env.CURSORSHARE_CLOUDFLARED; // Mac：アプリに同梱
   const name = process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared';
   const bundled = path.join(BASE_DIR, name);
-  return fs.existsSync(bundled) ? bundled : 'cloudflared'; // 無ければPATHから
+  if (fs.existsSync(bundled)) return bundled;
+  // Mac で Homebrew から入れた場合（アプリからは PATH が通っていないことがある）
+  for (const p of ['/opt/homebrew/bin/cloudflared', '/usr/local/bin/cloudflared']) if (fs.existsSync(p)) return p;
+  return 'cloudflared'; // 無ければPATHから
 }
 
 function startTunnel() {
@@ -394,7 +398,9 @@ function startTunnel() {
   child.on('error', () => {
     clearTimeout(giveUp);
     if (tunnelChild === child) tunnelChild = null;
-    setTunnel('error', 'cloudflared.exe が見つかりません。このアプリと同じフォルダに置いてください');
+    setTunnel('error', process.platform === 'win32'
+      ? 'cloudflared.exe が見つかりません。このアプリと同じフォルダに置いてください'
+      : 'cloudflared が見つかりません（Mac では「brew install cloudflared」でも入れられます）');
   });
   child.on('exit', () => {
     clearTimeout(giveUp);

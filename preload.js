@@ -7,4 +7,8 @@ contextBridge.exposeInMainWorld('cursorShareApp', {
   shareStarted: () => ipcRenderer.send('share-started'),
   shareStopped: () => ipcRenderer.send('share-stopped'),
   setOverlay: (on) => ipcRenderer.invoke('set-overlay', on),
+  platform: process.platform,
+  screenAccess: () => ipcRenderer.invoke('screen-access'),
+  openScreenSettings: () => ipcRenderer.invoke('open-screen-settings'),
+  relaunch: () => ipcRenderer.invoke('relaunch'),
 });

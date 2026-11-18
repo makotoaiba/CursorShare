@@ -1,9 +1,10 @@
-# v から始まるタグ（例: v1.1.3）を push すると、Windows版をビルドして GitHub Releases に公開する
-name: Release
+# タグ win-v1.4.0 のように「win-v」から始まるタグを push すると、Windows版をビルドして
+# GitHub Releases に「Windows版 v1.4.0」として公開する（Mac版とは別のリリースになる）
+name: Release Windows
 
 on:
   push:
-    tags: ['v*']
+    tags: ['win-v*']
   workflow_dispatch: # Actions画面から手動でビルドだけ試すこともできる（リリースは作らない）
 
 permissions:
@@ -13,28 +14,29 @@ env:
   CLOUDFLARED_VERSION: '2026.10.7' # 同梱する cloudflared。更新するときはここを変える
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: タグと package.json のバージョンが一致しているか確認
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          pkg=$(node -p "require('./package.json').version")
+          if [ "win-v$pkg" != "${{ github.ref_name }}" ]; then
+            echo "::error::タグ ${{ github.ref_name }} と package.json の version ($pkg) が一致しません（win-v$pkg にしてください）"
+            exit 1
+          fi
+
   build-windows:
+    needs: check-version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
-
       - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
-
-      - name: タグと package.json のバージョンが一致しているか確認
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: pwsh
-        run: |
-          $pkg = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          if ("v$pkg" -ne "${{ github.ref_name }}") {
-            Write-Error "タグ ${{ github.ref_name }} と package.json の version ($pkg) が一致しません"
-            exit 1
-          }
-
       - run: npm ci
-
       - name: アプリをビルド
         shell: pwsh
         run: |
@@ -46,10 +48,9 @@ jobs:
             --win32metadata.CompanyName="Takasono Makoto" `
             --win32metadata.ProductName="CursorShare" `
             --win32metadata.FileDescription="CursorShare" `
-            --ignore="^/build" --ignore="^/dist-files" --ignore="^/\.github" `
+            --ignore="^/build" --ignore="^/dist-files" --ignore="^/\.github" --ignore="^/mac" `
             --ignore="^/config\.json" --ignore="^/start\.bat" --ignore="^/README\.md" `
-            --ignore="^/cloudflared"
-
+            --ignore="^/cloudflared" --ignore="^/\.gitignore"
       - name: 配布フォルダを組み立てて zip にする
         shell: pwsh
         run: |
@@ -57,27 +58,40 @@ jobs:
           $out = "release/CursorShare"
           New-Item -ItemType Directory -Force "$out/licenses" | Out-Null
           Copy-Item -Recurse build/CursorShare-win32-x64/* $out
-          Copy-Item config.json, dist-files/README.txt $out
+          Copy-Item config.json $out
+          (Get-Content dist-files/README.txt -Raw).Replace("CursorShare`n", "CursorShare $ver`n") | Set-Content "$out/README.txt" -Encoding utf8
           Copy-Item LICENSE "$out/licenses/CursorShare-LICENSE.txt"
           Copy-Item node_modules/ws/LICENSE "$out/licenses/ws-LICENSE.txt"
           Invoke-WebRequest "https://github.com/cloudflare/cloudflared/releases/download/$env:CLOUDFLARED_VERSION/cloudflared-windows-amd64.exe" -OutFile "$out/cloudflared.exe"
           Invoke-WebRequest "https://raw.githubusercontent.com/cloudflare/cloudflared/$env:CLOUDFLARED_VERSION/LICENSE" -OutFile "$out/licenses/cloudflared-LICENSE.txt"
           Compress-Archive -Path $out -DestinationPath "release/CursorShare-$ver-win.zip" -CompressionLevel Optimal
-
       - uses: actions/upload-artifact@v7
         with:
-          name: CursorShare-win
+          name: win
           path: release/*.zip
 
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: バージョン番号
+        id: v
+        run: echo "ver=${GITHUB_REF_NAME#win-v}" >> "$GITHUB_OUTPUT"
       - name: GitHub Releases に公開
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v3
         with:
-          files: release/*.zip
-          generate_release_notes: true
+          name: Windows版 v${{ steps.v.outputs.ver }}
+          files: dist/*.zip
           body: |
-            ## ダウンロード
-            下の **CursorShare-（バージョン）-win.zip** をダウンロードして解凍し、`CursorShare.exe` を起動してください。
+            ## ダウンロード（Windows）
+            下の `CursorShare-（バージョン）-win.zip` をダウンロードして解凍し、`CursorShare.exe` を起動してください。
             参加する人はインストール不要です（ホストから届いたURLを Chrome / Edge で開くだけ）。
 
             初回起動で「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」を選んでください。
+
+            Mac をお使いの方は「Mac版」のリリースを見てください。

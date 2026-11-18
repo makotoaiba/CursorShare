@@ -229,3 +229,6 @@ button.mic[data-state="na"] { color: var(--muted); }
 .note-line span { font-weight: 700; letter-spacing: .02em; }
 .note-line.fade { opacity: 0; }
 .overlay-feed { position: static; align-items: flex-end; }
+
+.perm-box { margin: 10px 0 4px; padding: 10px 12px; border-radius: 8px; border: 1px solid #ffcf70; background: rgba(255, 207, 112, .08); }
+.perm-box p { margin: 0 0 8px; font-size: 13px; line-height: 1.7; }

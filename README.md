@@ -1,16 +1,24 @@
 # CursorShare
 
-自分のPC画面（と音声）を共有しながら、参加者のマウスカーソルを **色付き・名前付き** で表示するWindowsアプリです。
+自分のPC画面（と音声）を共有しながら、参加者のマウスカーソルを **色付き・名前付き** で表示するアプリです（Windows / Mac）。
 参加者のカーソルはホストのデスクトップにも重ねて表示されるので、「ここ」「このセリフ」と指し示しながら打ち合わせできます。
 参加者の操作がホストのPCに送られることはありません（見るだけ・指し示すだけ）。
 
 ## ダウンロード
 
-[Releases](../../releases/latest) から `CursorShare-x.x.x-win.zip` をダウンロードして解凍し、`CursorShare.exe` を起動してください。
+Windows版とMac版は、別々のリリースとして公開しています。
+
+| PC | リリース | ファイル |
+|---|---|---|
+| Windows | [Windows版のリリース一覧](../../releases?q=win-v&expanded=true) | `CursorShare-x.x.x-win.zip` → `CursorShare.exe` |
+| Mac（Apple シリコン M1〜） | [Mac版のリリース一覧](../../releases?q=mac-v&expanded=true) | `CursorShare-x.x.x-mac-arm64.zip` → `CursorShare.app` |
+| Mac（Intel） | [Mac版のリリース一覧](../../releases?q=mac-v&expanded=true) | `CursorShare-x.x.x-mac-x64.zip` → `CursorShare.app` |
+
 参加する人はインストール不要で、ホストから届いたURLを Chrome / Edge で開くだけです。
 
-> 初回起動で「Windows によって PC が保護されました」と出たら「詳細情報」→「実行」。
-> ファイアウォールの許可を聞かれたら「プライベート ネットワーク」を許可してください。
+> 署名のない自作アプリのため、初回は OS に止められます。
+> Windows は「詳細情報」→「実行」。Mac は「システム設定」→「プライバシーとセキュリティ」→「このまま開く」（zip 内の README.txt に手順あり）。
+> Mac では初回に「画面収録」（PCの音を共有するなら「システムオーディオ録音」も）の許可が必要です。
 
 ## できること
 
@@ -71,9 +79,16 @@ npm start        # ブラウザ版（ホスト画面を http://localhost:8787/ho
 
 ## リリース手順
 
-1. `package.json` の `version` を上げてコミット
-2. 同じバージョンのタグを付けて push（例：`git tag v1.2.0 && git push origin v1.2.0`）
-3. GitHub Actions が Windows 版をビルドし、Releases に zip を公開します
+Windows版とMac版は、タグの付け方で別々にリリースします（ソースは共通）。
+
+1. `package.json` の `version` を上げてコミット・push
+2. 出したい方のタグを付けて push
+   - Windows版：`git tag win-v1.4.0 && git push origin win-v1.4.0`
+   - Mac版：`git tag mac-v1.4.0 && git push origin mac-v1.4.0`
+3. GitHub Actions がビルドし、「Windows版 v1.4.0」「Mac版 v1.4.0」のようなリリースを作ります
+
+タグの番号は `package.json` の `version` と同じにしてください（違うとビルドが止まります）。
+片方だけ直した場合は、そちらのタグだけ付ければ大丈夫です。
 
 ## ライセンス
 

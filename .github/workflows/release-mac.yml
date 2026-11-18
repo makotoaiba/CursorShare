@@ -1,0 +1,106 @@
+# タグ mac-v1.4.0 のように「mac-v」から始まるタグを push すると、Mac版をビルドして
+# GitHub Releases に「Mac版 v1.4.0」として公開する（Windows版とは別のリリースになる）
+name: Release Mac
+
+on:
+  push:
+    tags: ['mac-v*']
+  workflow_dispatch: # Actions画面から手動でビルドだけ試すこともできる（リリースは作らない）
+
+permissions:
+  contents: write
+
+env:
+  CLOUDFLARED_VERSION: '2026.10.7' # 同梱する cloudflared。更新するときはここを変える
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: タグと package.json のバージョンが一致しているか確認
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          pkg=$(node -p "require('./package.json').version")
+          if [ "mac-v$pkg" != "${{ github.ref_name }}" ]; then
+            echo "::error::タグ ${{ github.ref_name }} と package.json の version ($pkg) が一致しません（mac-v$pkg にしてください）"
+            exit 1
+          fi
+
+  build-mac:
+    needs: check-version
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [arm64, x64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: cloudflared（Mac用）を取得
+        run: |
+          cf=$([ "${{ matrix.arch }}" = x64 ] && echo amd64 || echo arm64)
+          mkdir -p cf
+          curl -sL "https://github.com/cloudflare/cloudflared/releases/download/$CLOUDFLARED_VERSION/cloudflared-darwin-$cf.tgz" | tar xz -C cf
+      - name: アプリをビルドして署名（ad-hoc）
+        run: |
+          ver=$(node -p "require('./package.json').version")
+          npx electron-packager . CursorShare \
+            --platform=darwin --arch=${{ matrix.arch }} --asar --out=build --overwrite \
+            --app-version=$ver --build-version=$ver --app-bundle-id=com.takasono.cursorshare \
+            --app-copyright="Copyright (c) 2026 Takasono Makoto" \
+            --extend-info=mac/Info.plist --extra-resource=cf/cloudflared \
+            --ignore="^/build" --ignore="^/dist-files" --ignore="^/\.github" --ignore="^/mac" --ignore="^/cf" \
+            --ignore="^/config\.json" --ignore="^/start\.bat" --ignore="^/README\.md" --ignore="^/cloudflared" --ignore="^/\.gitignore"
+          # Apple シリコンは署名のないアプリを起動できないので、ad-hoc 署名する（開発者証明書は不要）
+          codesign --force --deep --sign - "build/CursorShare-darwin-${{ matrix.arch }}/CursorShare.app"
+          codesign --verify --deep --strict "build/CursorShare-darwin-${{ matrix.arch }}/CursorShare.app"
+      - name: 配布フォルダを組み立てて zip にする
+        run: |
+          ver=$(node -p "require('./package.json').version")
+          out=release/CursorShare
+          mkdir -p "$out/licenses"
+          ditto "build/CursorShare-darwin-${{ matrix.arch }}/CursorShare.app" "$out/CursorShare.app"
+          cp config.json "$out/"
+          sed "s/^CursorShare（Mac版）$/CursorShare $ver（Mac版）/" dist-files/README-mac.txt > "$out/README.txt"
+          cp LICENSE "$out/licenses/CursorShare-LICENSE.txt"
+          cp "build/CursorShare-darwin-${{ matrix.arch }}/LICENSE" "$out/licenses/Electron-LICENSE.txt"
+          cp "build/CursorShare-darwin-${{ matrix.arch }}/LICENSES.chromium.html" "$out/licenses/"
+          cp node_modules/ws/LICENSE "$out/licenses/ws-LICENSE.txt"
+          curl -sL "https://raw.githubusercontent.com/cloudflare/cloudflared/$CLOUDFLARED_VERSION/LICENSE" -o "$out/licenses/cloudflared-LICENSE.txt"
+          cd release && ditto -c -k --sequesterRsrc --keepParent CursorShare "CursorShare-$ver-mac-${{ matrix.arch }}.zip"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mac-${{ matrix.arch }}
+          path: release/*.zip
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build-mac
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: バージョン番号
+        id: v
+        run: echo "ver=${GITHUB_REF_NAME#mac-v}" >> "$GITHUB_OUTPUT"
+      - name: GitHub Releases に公開
+        uses: softprops/action-gh-release@v3
+        with:
+          name: Mac版 v${{ steps.v.outputs.ver }}
+          files: dist/*.zip
+          body: |
+            ## ダウンロード（Mac）
+            - **Apple シリコン（M1〜）**：`CursorShare-（バージョン）-mac-arm64.zip`
+            - **Intel**：`CursorShare-（バージョン）-mac-x64.zip`
+
+            解凍した `CursorShare.app` を「アプリケーション」フォルダに移して起動してください。
+            署名のない自作アプリのため、初回は Mac に止められます。「システム設定」→「プライバシーとセキュリティ」→「このまま開く」を押してください（zip 内の README.txt に手順があります）。
+            参加する人はインストール不要です（ホストから届いたURLを Chrome / Edge で開くだけ）。
+
+            Windows をお使いの方は「Windows版」のリリースを見てください。
