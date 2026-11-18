@@ -34,6 +34,7 @@
     <span id="rxMeter" class="meter" title="受信中の共有音のレベル"><i></i></span>
     <input id="vol" type="range" min="0" max="1" step="0.05" value="0.8" aria-label="共有音の音量" title="共有音の音量">
   </div>
+  <button id="pianoBtn" type="button" aria-pressed="false" title="鍵盤を出す／しまう（P）">🎹 鍵盤</button>
   <button id="chatBtn" type="button" aria-pressed="true">チャット<span id="unread" class="badge" hidden></span></button>
   <button id="fsBtn" type="button">全画面</button>
 </header>
@@ -43,6 +44,19 @@
     <video id="video" autoplay playsinline muted></video>
     <div id="layer" class="layer"></div>
     <div id="reactions" class="react-dock" role="group" aria-label="リアクション（キー1〜6）" title="右クリックしたままドラッグで、数秒で消える線を描けます" hidden></div>
+    <div id="noteFeed" class="note-feed" aria-live="polite"></div>
+    <div id="piano" class="piano" hidden>
+      <div class="piano-head">
+        <button id="octDown" type="button" title="1オクターブ下げる（Z）" aria-label="1オクターブ下げる">◀</button>
+        <span id="octLabel" class="oct-label"></span>
+        <button id="octUp" type="button" title="1オクターブ上げる（X）" aria-label="1オクターブ上げる">▶</button>
+        <button id="labelBtn" type="button" title="音名の表示を切り替え"></button>
+        <label class="vol-label" title="鍵盤の音量（全員の鍵盤の音）">音量<input id="pianoVol" type="range" min="0" max="1" step="0.05" value="0.8" aria-label="鍵盤の音量"></label>
+        <span class="spacer"></span>
+        <button id="pianoClose" type="button" class="piano-x" aria-label="鍵盤をしまう" title="しまう（P）">✕</button>
+      </div>
+      <div id="pianoKeys" class="piano-keys"></div>
+    </div>
     <p id="empty" class="empty">ホストが画面共有を始めると、ここに表示されます<br>（共有の前でも、マイクを使って話せます）</p>
     <p id="notice" class="notice" role="status" hidden></p>
   </main>

@@ -173,6 +173,8 @@ wss.on('connection', (ws, req) => {
   const id = String(++seq);
   const local = isLocalReq(req);
   let me = null;
+  let noteTokens = 40; // 鍵盤の連打しすぎを防ぐ（1秒あたり約40回まで）
+  let noteAt = Date.now();
 
   const reject = (message) => {
     ws.send(JSON.stringify({ type: 'error', fatal: true, message }));
@@ -257,6 +259,19 @@ wss.on('connection', (ws, req) => {
       case 'hide':
         if (me.role === 'viewer') broadcast({ type: 'hide', id }, id);
         break;
+      case 'note': {
+        // 鍵盤：押した／離した（音そのものは送らず、受け取った側がその場で鳴らす）
+        if (me.role !== 'viewer') return;
+        const note = Number(m.note);
+        if (!Number.isInteger(note) || note < 21 || note > 108) return;
+        const now = Date.now();
+        noteTokens = Math.min(40, noteTokens + (now - noteAt) * 0.04);
+        noteAt = now;
+        if (noteTokens < 1) return;
+        noteTokens -= 1;
+        broadcast({ type: 'note', id, note, on: !!m.on }, id);
+        break;
+      }
       case 'stroke': {
         // 右ドラッグで描いた線（数秒で消える）。点は少しずつまとめて届く
         if (me.role !== 'viewer') return;

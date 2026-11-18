@@ -3,6 +3,7 @@ import {
   REACTIONS, appendChat, bindChatInput, startMeter, micIcon,
 } from '/common.js';
 import { ViewerVoice } from '/view-voice.js';
+import { PianoSynth, PianoKeyboard, NoteFeed, LABEL_MODES, LABEL_TEXT, KEY_CODES } from '/piano.js';
 
 const $ = (s) => document.querySelector(s);
 const video = $('#video');
@@ -78,6 +79,7 @@ $('#joinForm').addEventListener('submit', (e) => {
   if (!myName) return;
   try { localStorage.setItem('cursorshare.name', myName); } catch {}
   $('#join').hidden = true;
+  pianoInit(); // 「参加する」のクリックのうちに、鍵盤の音を鳴らす準備をしておく
   wantAudio = true; // 「参加する」のクリックで自動再生の許可が得られるので、最初から音声オン
   connect();
 });
@@ -139,6 +141,8 @@ async function handle(m) {
     case 'leave':
       people.delete(m.id);
       layer.removePerson(m.id);
+      if (synth) synth.allOff(`${m.id}:`);
+      keyboard.clearRemote(m.id);
       refreshPeople();
       break;
     case 'voice': {
@@ -158,6 +162,7 @@ async function handle(m) {
     case 'click': if (m.id !== (me && me.id)) layer.click(m.id, m.x, m.y); break;
     case 'hide': layer.hide(m.id); break;
     case 'stroke': layer.stroke(m.id, m.sid, m.pts, m.end); break;
+    case 'note': remoteNote(m); break;
     case 'react': layer.react(m.id, m.emoji, m.x, m.y); break;
     case 'chat':
       appendChat(chatList, m, me && me.id);
@@ -300,7 +305,7 @@ function leave() {
   send({ type: 'hide' });
 }
 
-const onDock = (e) => !!e.target.closest('.react-dock');
+const onDock = (e) => !!e.target.closest('.react-dock, .piano');
 
 // ---------- 右ドラッグで線を描く（数秒で消える） ----------
 let drawing = null; // { sid, pending, last, timer, pointerId }
@@ -543,3 +548,119 @@ renderMic();
 
 // 動作確認用（開発者ツールから状態を見られるように）
 window.__cs = { voice, people, layer, get pc() { return pc; } };
+
+// ---------- 鍵盤 ----------
+// 押した鍵盤は全員（ほかの参加者・ホスト）に伝わり、それぞれの画面で同じ音が鳴る
+let pianoCtx = null;
+let synth = null;
+const feed = new NoteFeed($('#noteFeed'));
+const keyboard = new PianoKeyboard($('#pianoKeys'), {
+  onDown: (m) => localNote(m, true),
+  onUp: (m) => localNote(m, false),
+});
+const pianoVol = $('#pianoVol');
+try { pianoVol.value = localStorage.getItem('cursorshare.pianoVolume') ?? pianoVol.value; } catch {}
+let labelMode = 'doremi';
+try { labelMode = localStorage.getItem('cursorshare.viewerNoteLabels') || 'doremi'; } catch {}
+if (!LABEL_MODES.includes(labelMode)) labelMode = 'doremi';
+
+function pianoInit() {
+  if (synth) return;
+  try {
+    pianoCtx = new AudioContext({ latencyHint: 'interactive' });
+    synth = new PianoSynth(pianoCtx);
+    synth.setVolume(Number(pianoVol.value));
+  } catch (e) { console.warn(e); }
+}
+function applyLabels() {
+  keyboard.setMode(labelMode);
+  feed.setMode(labelMode);
+  $('#labelBtn').textContent = `音名：${LABEL_TEXT[labelMode]}`;
+}
+applyLabels();
+$('#octLabel').textContent = keyboard.range();
+
+const held = new Set(); // 自分が押している鍵盤（マウス・キーボード）
+function localNote(m, on) {
+  if (!me) return;
+  pianoInit();
+  if (on) {
+    if (held.has(m)) return;
+    held.add(m);
+    synth && synth.noteOn(`me:${m}`, m);
+    feed.add(me.id, `${me.name}（自分）`, me.color, m);
+  } else {
+    if (!held.delete(m)) return;
+    synth && synth.noteOff(`me:${m}`);
+  }
+  keyboard.setLocal(m, on);
+  send({ type: 'note', note: m, on });
+}
+function remoteNote(m) {
+  pianoInit();
+  const p = people.get(m.id);
+  const color = p ? p.color : '#ffffff';
+  if (m.on) {
+    synth && synth.noteOn(`${m.id}:${m.note}`, m.note);
+    feed.add(m.id, p ? p.name : '参加者', color, m.note);
+  } else if (synth) synth.noteOff(`${m.id}:${m.note}`);
+  keyboard.setRemote(m.id, m.note, color, m.on);
+}
+function releaseAll() {
+  for (const m of [...held]) localNote(m, false);
+  keysDown.clear();
+}
+
+const pianoOpen = () => !$('#piano').hidden;
+function setPiano(open) {
+  if (!open) releaseAll();
+  $('#piano').hidden = !open;
+  $('#pianoBtn').setAttribute('aria-pressed', String(open));
+  if (open) pianoInit();
+}
+$('#pianoBtn').addEventListener('click', () => setPiano(!pianoOpen()));
+$('#pianoClose').addEventListener('click', () => setPiano(false));
+function shiftOct(n) {
+  releaseAll();
+  if (keyboard.shift(n)) $('#octLabel').textContent = keyboard.range();
+}
+$('#octDown').addEventListener('click', () => shiftOct(-1));
+$('#octUp').addEventListener('click', () => shiftOct(1));
+$('#labelBtn').addEventListener('click', () => {
+  labelMode = LABEL_MODES[(LABEL_MODES.indexOf(labelMode) + 1) % LABEL_MODES.length];
+  try { localStorage.setItem('cursorshare.viewerNoteLabels', labelMode); } catch {}
+  applyLabels();
+});
+pianoVol.addEventListener('input', () => {
+  pianoInit();
+  synth && synth.setVolume(Number(pianoVol.value));
+  try { localStorage.setItem('cursorshare.pianoVolume', pianoVol.value); } catch {}
+});
+
+// パソコンのキーで弾く：A W S E D F T G Y H U J K、Z/X でオクターブ、P で出す／しまう
+const keysDown = new Map(); // キー -> 鳴らした音
+document.addEventListener('keydown', (e) => {
+  if (typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.code === 'KeyP' && !e.repeat) return setPiano(!pianoOpen());
+  if (!pianoOpen() || e.repeat) {
+    if (pianoOpen() && KEY_CODES.includes(e.code)) e.preventDefault();
+    return;
+  }
+  const i = KEY_CODES.indexOf(e.code);
+  if (i >= 0) {
+    e.preventDefault();
+    const m = keyboard.base + i;
+    keysDown.set(e.code, m);
+    localNote(m, true);
+  } else if (e.code === 'KeyZ') shiftOct(-1);
+  else if (e.code === 'KeyX') shiftOct(1);
+});
+document.addEventListener('keyup', (e) => {
+  const m = keysDown.get(e.code);
+  if (m == null) return;
+  keysDown.delete(e.code);
+  localNote(m, false);
+});
+window.addEventListener('blur', releaseAll);
+
+window.__cs.piano = { keyboard, feed, get synth() { return synth; } };

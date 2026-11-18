@@ -1,10 +1,20 @@
 // ホストPCのデスクトップに重ねる透明ウィンドウ（クリックは下のアプリへ素通り）
 import { CursorLayer, wsUrl, micIcon } from '/common.js';
+import { NoteFeed, LABEL_MODES } from '/piano.js';
 
 const layer = new CursorLayer(document.querySelector('#layer'));
 const toasts = document.querySelector('#toasts');
 const speakersEl = document.querySelector('#speakers');
 const people = new Map(); // id -> { name, color, speaking }
+// 弾かれた音名（音そのものはホスト画面が鳴らすので、ここでは表示だけ）
+const feed = new NoteFeed(document.querySelector('#noteFeed'));
+const readLabels = () => {
+  let m = 'doremi';
+  try { m = localStorage.getItem('cursorshare.noteLabels') || 'doremi'; } catch {}
+  feed.setMode(LABEL_MODES.includes(m) ? m : 'doremi');
+};
+readLabels();
+window.addEventListener('storage', (e) => { if (e.key === 'cursorshare.noteLabels') readLabels(); }); // ホスト画面で切り替えたら追従
 let chain = Promise.resolve();
 
 function toast(m) {
@@ -70,6 +80,11 @@ function connect() {
         case 'click': layer.click(m.id, m.x, m.y); break;
         case 'hide': layer.hide(m.id); break;
         case 'stroke': layer.stroke(m.id, m.sid, m.pts, m.end); break;
+        case 'note': {
+          const p = people.get(m.id);
+          if (m.on) feed.add(m.id, p ? p.name : '参加者', p ? p.color : '#ffffff', m.note);
+          break;
+        }
         case 'react': layer.react(m.id, m.emoji, m.x, m.y); break;
         case 'chat':
           layer.say(m.id, m.text);
@@ -85,4 +100,4 @@ function connect() {
 }
 connect();
 
-window.__ov = { layer }; // 動作確認用
+window.__ov = { layer, feed }; // 動作確認用

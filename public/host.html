@@ -16,6 +16,15 @@
     <div id="voicePanel" class="pop pop-panel" hidden>
       <label class="pop-row"><span>音量</span><input id="voiceVol" type="range" min="0" max="1.5" step="0.05" value="1"></label>
       <label class="pop-row"><span>出力先</span><select id="voiceSink"><option value="">既定のデバイス</option></select></label>
+      <label class="pop-row"><span>鍵盤の音量</span><input id="pianoVol" type="range" min="0" max="1.5" step="0.05" value="0.8"></label>
+      <label class="pop-row"><span>音名の表示</span>
+        <select id="noteLabels">
+          <option value="doremi">ドレミ</option>
+          <option value="cde">CDE（C4 = 真ん中のド）</option>
+          <option value="both">両方</option>
+          <option value="off">表示しない</option>
+        </select>
+      </label>
       <label class="pop-row"><span>ハウリング防止</span>
         <select id="guardMode">
           <option value="auto">自動（おすすめ）</option>
@@ -45,6 +54,7 @@
   <main class="stage">
     <video id="video" autoplay playsinline muted></video>
     <div id="layer" class="layer"></div>
+    <div id="noteFeed" class="note-feed" aria-live="polite"></div>
     <p id="empty" class="empty">「画面共有を開始」で共有する画面を選んでください。<br>参加者のカーソル・リアクション・線（参加者の右ドラッグ）はこのプレビューに表示されます。<br>このウィンドウ自体は、共有しない別モニターに置くと映像が入れ子になりません。</p>
   </main>
   <aside class="chat">

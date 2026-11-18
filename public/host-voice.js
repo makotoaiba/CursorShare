@@ -52,6 +52,9 @@ export class HostVoice {
     this.monitor.gain.value = this.volume;
     this.bus.connect(this.monitor);
     this.monitor.connect(ctx.destination);
+    // 参加者が弾いた鍵盤の音の出口。声と同じく、共有音声に回り込む環境では共有音を止める合図にする
+    this.fx = ctx.createGain();
+    this.fx.connect(ctx.destination);
     this.pilotBus = ctx.createGain(); // テスト音の出口（声と同じ再生デバイスへ。音量つまみは通さない）
     this.pilotBus.connect(ctx.destination);
     this.meter = ctx.createAnalyser();
@@ -200,6 +203,7 @@ export class HostVoice {
         });
         sh.src.connect(sh.gate, 0, 0);
         this.monitor.connect(sh.gate, 0, 1);
+        this.fx.connect(sh.gate, 0, 1);
         sh.dest = new MediaStreamAudioDestinationNode(ctx, { channelCount: 2 });
         sh.gate.connect(sh.dest);
         sh.gated = sh.dest.stream.getAudioTracks()[0];
@@ -225,6 +229,7 @@ export class HostVoice {
     try {
       if (sh.gate) {
         this.monitor.disconnect(sh.gate);
+        try { this.fx.disconnect(sh.gate); } catch {}
         sh.gate.disconnect();
       }
     } catch {}

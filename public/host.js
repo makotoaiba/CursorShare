@@ -1,5 +1,6 @@
 import { CursorLayer, renderPeople, waitIceGathering, wsUrl, appendChat, bindChatInput, startMeter } from '/common.js';
 import { HostVoice } from '/host-voice.js';
+import { PianoSynth, NoteFeed, LABEL_MODES } from '/piano.js';
 
 const $ = (s) => document.querySelector(s);
 const video = $('#video');
@@ -97,12 +98,23 @@ async function handle(m) {
       layer.removePerson(m.id);
       closePeer(m.id);
       voice.removePeer(m.id);
+      synth.allOff(`${m.id}:`);
       refresh();
       break;
     case 'cursor': layer.move(m.id, m.x, m.y); break;
     case 'click': layer.click(m.id, m.x, m.y); break;
     case 'hide': layer.hide(m.id); break;
     case 'stroke': layer.stroke(m.id, m.sid, m.pts, m.end); break;
+    case 'note': {
+      // 参加者が弾いた鍵盤：ホストのスピーカーでも鳴らし、音名を出す
+      const p = people.get(m.id);
+      if (m.on) {
+        voice.resume();
+        synth.noteOn(`${m.id}:${m.note}`, m.note);
+        feed.add(m.id, p ? p.name : '参加者', p ? p.color : '#ffffff', m.note);
+      } else synth.noteOff(`${m.id}:${m.note}`);
+      break;
+    }
     case 'react': layer.react(m.id, m.emoji, m.x, m.y); break;
     case 'chat':
       appendChat(chatList, m, myId);
@@ -515,6 +527,24 @@ voice.volume = Number(stored('cursorshare.hostVoiceVolume', '1'));
 voice.sinkId = stored('cursorshare.voiceSink', '');
 voice.guard.mode = stored('cursorshare.guard', 'auto');
 voice.init();
+// 参加者の鍵盤の音（ホスト自身は弾かない。鳴らすだけ）
+const synth = new PianoSynth(voice.ctx, voice.fx);
+const feed = new NoteFeed($('#noteFeed'));
+const pianoVolume = Number(stored('cursorshare.hostPianoVolume', '0.8'));
+synth.setVolume(pianoVolume);
+$('#pianoVol').value = pianoVolume;
+$('#pianoVol').addEventListener('input', (e) => {
+  synth.setVolume(Number(e.target.value));
+  store('cursorshare.hostPianoVolume', e.target.value);
+});
+let noteLabels = stored('cursorshare.noteLabels', 'doremi');
+if (!LABEL_MODES.includes(noteLabels)) noteLabels = 'doremi';
+feed.mode = noteLabels;
+$('#noteLabels').value = noteLabels;
+$('#noteLabels').addEventListener('change', (e) => {
+  feed.setMode(e.target.value);
+  store('cursorshare.noteLabels', e.target.value); // デスクトップ表示にも反映される
+});
 $('#voiceVol').value = voice.volume;
 $('#guardMode').value = voice.guard.mode;
 // ブラウザ版では、最初の操作があるまで音を出せないので、操作のたびに起こす
@@ -629,7 +659,7 @@ let guardSent = false;
 renderGuard();
 
 // 動作確認用（開発者ツールから状態を見られるように）
-window.__cs = { voice, pcs, people, layer };
+window.__cs = { voice, pcs, people, layer, synth, feed };
 
 // ---------- インターネット公開 ----------
 let tunnelState = 'off';

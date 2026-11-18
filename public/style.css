@@ -203,3 +203,29 @@ button.mic[data-state="na"] { color: var(--muted); }
 
 /* 右ドラッグで描く線 */
 .ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+/* ---------- 鍵盤 ---------- */
+.piano { position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 4; width: min(560px, 94%); padding: 8px 10px 10px; border-radius: 12px; background: rgba(32, 36, 43, .94); border: 1px solid rgba(255, 255, 255, .12); box-shadow: 0 8px 26px rgba(0, 0, 0, .45); }
+.piano-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12px; }
+.piano-head button { padding: 3px 9px; font-size: 12px; }
+.oct-label { min-width: 72px; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+.piano-x { background: transparent; border-color: transparent; }
+.piano-keys { position: relative; display: flex; height: 132px; user-select: none; touch-action: none; }
+.pkey { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; cursor: pointer; }
+.pkey.white { flex: 1; margin: 0 1px; padding-bottom: 6px; border-radius: 0 0 6px 6px; background: linear-gradient(#fdfdfd, #e9eaec); color: #333; box-shadow: inset 0 -3px 0 #c9ccd1; }
+.pkey.black { position: absolute; top: 0; height: 62%; z-index: 1; padding-bottom: 5px; border-radius: 0 0 4px 4px; background: linear-gradient(#3a3f47, #1b1e23); color: #e7e9ec; box-shadow: inset 0 -3px 0 #000; }
+.pkey-name { font-size: 12px; font-weight: 600; line-height: 1.2; white-space: pre; text-align: center; }
+.pkey.black .pkey-name { font-size: 10px; }
+.pkey-hint { margin-top: 3px; font-size: 9px; opacity: .45; }
+.pkey.remote.white { background: linear-gradient(#fdfdfd, var(--rc)); }
+.pkey.remote.black { background: linear-gradient(#3a3f47, var(--rc)); }
+.pkey.on.white { background: linear-gradient(#cfe6ff, #8cc4ff); box-shadow: inset 0 -1px 0 #6aa9ee; }
+.pkey.on.black { background: linear-gradient(#4b8fd8, #2d6cb5); box-shadow: inset 0 -1px 0 #1d4f8a; }
+
+/* 弾かれた音名 */
+.note-feed { position: absolute; left: 12px; bottom: 14px; z-index: 3; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; pointer-events: none; }
+.note-line { display: flex; align-items: baseline; gap: 8px; max-width: 420px; padding: 5px 11px; border-radius: 8px; background: rgba(32, 36, 43, .88); border-left: 4px solid var(--c); color: #e7e9ec; font-size: 15px; box-shadow: 0 4px 14px rgba(0, 0, 0, .35); transition: opacity .5s; }
+.note-line b { font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.note-line span { font-weight: 700; letter-spacing: .02em; }
+.note-line.fade { opacity: 0; }
+.overlay-feed { position: static; align-items: flex-end; }
